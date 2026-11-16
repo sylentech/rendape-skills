@@ -1,0 +1,243 @@
+/* Camada de movimento — copie para o index.css DEPOIS dos tokens da marca.
+
+   Variáveis esperadas (troque pelos tokens do cliente):
+     --roxo, --purple-400, --branco, --preto-950
+     --dur-fast / --dur-base / --dur-slow
+     --ease-out / --ease-entrance / --ease-drift
+     --hover-lift, --press-scale, --radius-*, --space-*
+
+   Os tokens de movimento em si estão em motion-expressive.css, que deve ser
+   importado antes deste arquivo.
+
+   TUDO aqui desliga em prefers-reduced-motion, no fim de cada bloco.
+*/
+
+/* ===========================================================================
+   RESPOSTAS AO CURSOR — camada expressiva
+
+   O design system fixa hover = opacidade .78 e press = escala .985, e isso
+   continua valendo para botões e links (.rp-interactive). O que segue é para
+   BLOCOS — colunas de diferencial, nós do diagrama, canais de contato — onde
+   a superfície é grande o bastante para que só opacidade não registre.
+
+   Três regras que nenhum efeito aqui quebra:
+   · nada que o cursor revele é informação — tudo já está visível;
+   · todo estado é alcançável por :focus-within e por [data-active], então
+     teclado e toque chegam no mesmo lugar;
+   · tudo desliga em prefers-reduced-motion, no fim do arquivo.
+=========================================================================== */
+@layer components {
+  /* ---- Bloco que se eleva ---- */
+  .rp-bloco {
+    transition:
+      transform var(--dur-base) var(--ease-out),
+      background var(--dur-base) var(--ease-out);
+  }
+  .rp-bloco:hover,
+  .rp-bloco:focus-within,
+  .rp-bloco[data-active='true'] {
+    transform: translateY(-6px);
+  }
+
+  /* ---- Brilho que segue o cursor ----
+     --mx e --my são escritos em rAF pelo hook usePointerSpot. Sem cursor as
+     variáveis não existem e o brilho fica em 0: nada aparece no celular. */
+  .rp-brilho { position: relative; isolation: isolate; }
+  .rp-brilho::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: radial-gradient(
+      380px circle at var(--mx, 50%) var(--my, 50%),
+      rgba(118, 93, 209, .20),
+      transparent 68%
+    );
+    opacity: 0;
+    transition: opacity var(--dur-slow) var(--ease-out);
+    pointer-events: none;
+  }
+  .rp-brilho:hover::before,
+  .rp-brilho:focus-within::before { opacity: 1; }
+
+  /* ---- Marca que gira e cresce ao responder ---- */
+  .rp-marca-resp {
+    transition:
+      transform var(--dur-slow) var(--ease-out),
+      opacity var(--dur-base) var(--ease-out);
+    transform-origin: center bottom;
+  }
+  [data-active='true'] .rp-marca-resp,
+  .rp-bloco:hover .rp-marca-resp,
+  .rp-bloco:focus-within .rp-marca-resp {
+    transform: translateY(-4px) scale(1.06);
+  }
+
+  /* ---- Linha que cresce da esquerda sob um bloco ---- */
+  .rp-sublinha { position: relative; }
+  .rp-sublinha::after {
+    content: '';
+    position: absolute;
+    left: 0; bottom: 0;
+    height: 2px; width: 100%;
+    background: var(--roxo);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform var(--dur-slow) var(--ease-out);
+  }
+  .rp-sublinha:hover::after,
+  .rp-sublinha:focus-within::after,
+  .rp-sublinha[data-active='true']::after { transform: scaleX(1); }
+
+  /* ---- Link de contato: a seta aparece e desliza ---- */
+  .rp-contato-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: color var(--dur-base) var(--ease-out);
+  }
+  .rp-contato-seta {
+    opacity: 0;
+    transform: translateX(-6px);
+    transition:
+      opacity var(--dur-base) var(--ease-out),
+      transform var(--dur-base) var(--ease-out);
+  }
+  .rp-contato-link:hover .rp-contato-seta,
+  .rp-contato-link:focus-visible .rp-contato-seta {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  /* No toque a seta fica sempre visível: não há hover para revelá-la. */
+  @media (hover: none), (pointer: coarse) {
+    .rp-contato-seta { opacity: .6; transform: none; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-bloco:hover,
+  .rp-bloco:focus-within,
+  .rp-bloco[data-active='true'] { transform: none; }
+  [data-active='true'] .rp-marca-resp,
+  .rp-bloco:hover .rp-marca-resp,
+  .rp-bloco:focus-within .rp-marca-resp { transform: none; }
+  .rp-brilho::before { display: none; }
+  .rp-sublinha::after { transition: none; }
+  .rp-contato-seta { opacity: .6; transform: none; }
+}
+
+
+/* ===========================================================================
+   MAIS MOVIMENTO
+=========================================================================== */
+@layer components {
+  /* Visualmente oculto, mas lido por leitor de tela. Usado pelo TituloAnimado
+     e pelo Contador para entregar o texto inteiro a quem não vê a animação. */
+  .rp-sr {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ---- Título que entra palavra por palavra ----
+     Cada palavra tem uma máscara própria; o conteúdo sobe de dentro dela. */
+  .rp-palavra {
+    display: inline-block;
+    overflow: hidden;
+    /* Sem o padding a máscara corta descendentes (p, g, ç) e o acento do "ê". */
+    padding-bottom: 0.12em;
+    margin-bottom: -0.12em;
+    vertical-align: bottom;
+  }
+  .rp-palavra + .rp-palavra { margin-left: 0.26em; }
+  .rp-palavra-in {
+    display: inline-block;
+    transform: translateY(110%);
+    opacity: 0;
+    transition:
+      transform 760ms var(--ease-entrance),
+      opacity 520ms var(--ease-entrance);
+    transition-delay: var(--palavra-delay, 0ms);
+  }
+  [data-revealed] .rp-palavra-in {
+    transform: translateY(0);
+    opacity: 1;
+  }
+
+  /* ---- Arco que se desenha ----
+     O traço nasce de um ponto e percorre o arco. Usado no Grupo Referência,
+     onde o arco emoldura o texto. */
+  .rp-arco-desenha {
+    stroke-dasharray: var(--arco-len, 1000);
+    stroke-dashoffset: var(--arco-len, 1000);
+    transition: stroke-dashoffset 1800ms var(--ease-entrance);
+  }
+  [data-revealed] .rp-arco-desenha { stroke-dashoffset: 0; }
+
+  /* ---- Marca d'água que deriva devagar ----
+     Amplitude mínima e ciclo longo: percebe-se que a página está viva sem
+     que nada peça atenção. */
+  @keyframes rp-agua {
+    0%   { transform: translate(0, -50%) rotate(0deg); }
+    50%  { transform: translate(-14px, calc(-50% - 10px)) rotate(-1.4deg); }
+    100% { transform: translate(0, -50%) rotate(0deg); }
+  }
+  .rp-agua { animation: rp-agua 26s var(--ease-drift) infinite; }
+
+  /* ---- Cabeçalho que se recolhe ao descer e volta ao subir ----
+     Ganha altura de tela na leitura, sem esconder a navegação de quem
+     quer voltar. O estado é escrito pelo Header em data-oculto. */
+  .rp-header {
+    transition:
+      transform var(--dur-slow) var(--ease-out),
+      background var(--dur-base) var(--ease-out),
+      border-color var(--dur-base) var(--ease-out);
+  }
+  .rp-header[data-oculto='true'] { transform: translateY(-100%); }
+
+  /* ---- Barra de progresso da leitura ----
+     Fina, no topo, sem número: diz onde você está sem virar interface. */
+  .rp-progresso {
+    position: fixed;
+    top: 0; left: 0;
+    height: 2px;
+    width: 100%;
+    transform-origin: left;
+    transform: scaleX(var(--progresso, 0));
+    background: linear-gradient(90deg, var(--purple-400), var(--roxo));
+    z-index: 120;
+    pointer-events: none;
+  }
+
+  /* ---- Gradiente que respira sob o painel roxo ---- */
+  @keyframes rp-respira {
+    0%   { opacity: .55; transform: scale(1); }
+    50%  { opacity: .85; transform: scale(1.06); }
+    100% { opacity: .55; transform: scale(1); }
+  }
+  .rp-respira { animation: rp-respira 14s var(--ease-drift) infinite; }
+
+  /* ---- Rodapé: o link desliza junto com a marca ---- */
+  .rp-link-desliza {
+    display: inline-block;
+    transition: transform var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+  }
+  .rp-link-desliza:hover,
+  .rp-link-desliza:focus-visible { transform: translateX(4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-palavra-in { transform: none !important; opacity: 1 !important; transition: none !important; }
+  .rp-arco-desenha { stroke-dashoffset: 0 !important; transition: none !important; }
+  .rp-agua, .rp-respira { animation: none !important; }
+  .rp-header[data-oculto='true'] { transform: none !important; }
+  .rp-progresso { display: none; }
+  .rp-link-desliza:hover, .rp-link-desliza:focus-visible { transform: none; }
+}
+

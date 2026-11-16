@@ -1,0 +1,163 @@
+/* Rendapê — CAMADA DE MOVIMENTO EXPRESSIVO (site institucional, 2026)
+   ------------------------------------------------------------------
+   O design system é estático por natureza: tokens/motion.css limita movimento a
+   cross-fades de 240ms e pequenas mudanças de opacidade, e proíbe bounce, spring,
+   parallax e scroll-jacking.
+
+   Esta camada ESTENDE aquelas regras para uma superfície que o design system não
+   previa — uma home institucional, onde o movimento é parte do argumento comercial.
+   Ela não substitui motion.css: importa depois e só acrescenta.
+
+   As extensões respeitam a identidade:
+   · Nenhum bounce e nenhum overshoot. As curvas novas continuam saindo em ease-out.
+   · Nada de scroll-jacking: a rolagem é sempre a nativa do navegador.
+   · O parallax existe, mas é de amplitude minúscula (máx. 14px) e responde ao
+     cursor, não à rolagem — é profundidade, não efeito.
+   · Opacidade e deslocamento continuam sendo as duas propriedades animadas.
+     Nenhuma animação de cor, nenhuma troca de preenchimento.
+   · Toda regra daqui é desligada por prefers-reduced-motion no fim do arquivo. */
+
+:root {
+  /* Durações longas, para entradas coordenadas na rolagem. As três do DS
+     (--dur-fast/base/slow) continuam valendo para hover e press. */
+  --dur-entrance: 620ms;
+  --dur-ambient: 1100ms;
+
+  /* Curvas. --ease-out do DS continua sendo a padrão; estas duas são para
+     percursos mais longos, onde a curva do DS chega rápido demais. */
+  --ease-entrance: cubic-bezier(0.16, 0.84, 0.44, 1);
+  --ease-drift: cubic-bezier(0.37, 0, 0.63, 1);
+
+  /* Escalonamento entre irmãos numa entrada coordenada. */
+  --stagger-tight: 60ms;
+  --stagger-base: 90ms;
+  --stagger-loose: 140ms;
+
+  /* Deslocamento de entrada — deliberadamente curto, para não virar slide. */
+  --enter-shift: 22px;
+  --enter-shift-sm: 12px;
+
+  /* Amplitude máxima da resposta ao cursor. Teto de 14px: acima disso o
+     elemento descola do layout e o efeito passa a chamar atenção para si. */
+  --cursor-depth-near: 14px;
+  --cursor-depth-mid: 8px;
+  --cursor-depth-far: 4px;
+}
+
+/* ---- Entradas na rolagem -------------------------------------------------
+   O estado inicial é aplicado por [data-reveal]; o componente Reveal marca
+   [data-revealed] quando o IntersectionObserver dispara. */
+
+[data-reveal] {
+  opacity: 0;
+  transition:
+    opacity var(--dur-entrance) var(--ease-entrance),
+    transform var(--dur-entrance) var(--ease-entrance);
+  transition-delay: var(--reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+[data-reveal='up']    { transform: translate3d(0, var(--enter-shift), 0); }
+[data-reveal='down']  { transform: translate3d(0, calc(var(--enter-shift) * -1), 0); }
+[data-reveal='left']  { transform: translate3d(var(--enter-shift), 0, 0); }
+[data-reveal='right'] { transform: translate3d(calc(var(--enter-shift) * -1), 0, 0); }
+[data-reveal='fade']  { transform: none; }
+/* A cortina do arco: a peça sobe revelando-se por baixo de uma máscara. */
+[data-reveal='arch'] {
+  transform: translate3d(0, var(--enter-shift), 0);
+  clip-path: inset(0 0 var(--enter-shift) 0 round var(--arch-md) var(--arch-md) 0 0);
+}
+
+[data-revealed] {
+  opacity: 1;
+  transform: none;
+}
+[data-reveal='arch'][data-revealed] {
+  clip-path: inset(0 0 0 0 round var(--arch-md) var(--arch-md) 0 0);
+}
+
+/* Quando a entrada termina, solta o will-change para não segurar camada de GPU. */
+[data-revealed][data-settled] { will-change: auto; }
+
+/* ---- Deriva ambiente -----------------------------------------------------
+   Movimento contínuo de amplitude mínima, para campos de luz de fundo. Nunca
+   aplicado a texto nem a nada que o leitor precise acompanhar. */
+
+@keyframes rp-drift {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(0, -10px, 0) scale(1.015); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+.rp-drift {
+  animation: rp-drift 18s var(--ease-drift) infinite;
+}
+
+/* Traço que se desenha — usado nas linhas de conexão do diagrama do modelo. */
+@keyframes rp-draw {
+  from { stroke-dashoffset: var(--draw-length, 400); }
+  to   { stroke-dashoffset: 0; }
+}
+.rp-draw {
+  stroke-dasharray: var(--draw-length, 400);
+  animation: rp-draw var(--dur-ambient) var(--ease-entrance) both;
+  animation-delay: var(--draw-delay, 0ms);
+}
+
+/* Pulso que percorre a linha, mostrando a direção do fluxo. Opacidade e
+   posição apenas — sem mudança de cor. */
+@keyframes rp-pulse-path {
+  0%   { offset-distance: 0%;   opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+
+/* ---- Estados interativos -------------------------------------------------
+   O DS fixa: hover = opacidade .78, press = escala .985, foco = anel 2px.
+   Mantidos exatamente. O que esta camada acrescenta é só a transição entre
+   eles, para que a mudança não seja instantânea. */
+
+.rp-interactive {
+  transition:
+    opacity var(--dur-base) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.rp-interactive:hover { opacity: 0.78; }
+.rp-interactive:active { transform: scale(var(--press-scale)); }
+.rp-interactive:disabled,
+.rp-interactive[aria-disabled='true'] { opacity: 0.45; }
+
+/* O elemento respondeu ao cursor, ao toque ou ao foco pelo teclado. Os três
+   caminhos chegam no mesmo estado: nada depende exclusivamente de hover. */
+.rp-respond {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.rp-respond[data-active='true'] {
+  transform: translateY(var(--hover-lift));
+}
+
+/* ---- prefers-reduced-motion ---------------------------------------------
+   Desliga toda a camada expressiva. O conteúdo fica visível no estado final:
+   nada pode depender de uma animação para aparecer. */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    clip-path: none !important;
+    transition: none !important;
+  }
+  .rp-drift,
+  .rp-draw {
+    animation: none !important;
+  }
+  .rp-draw { stroke-dashoffset: 0 !important; }
+  .rp-respond[data-active='true'] { transform: none; }
+  .rp-interactive { transition: opacity var(--dur-fast) linear; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
